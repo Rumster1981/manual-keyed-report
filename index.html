@@ -14,7 +14,7 @@ button{font-size:18px;padding:12px;border:0;border-radius:10px;background:#ddd;m
 .deps button.on,.rs button.on{background:#0a7d3b;color:#fff}.rs{display:flex;gap:6px}.rs button{flex:1;padding:16px}
 
 .blk{background:#fff;border-radius:12px;padding:6px;margin:6px 0;border:3px solid transparent}.blk.act{border-color:#0a5fb4}.bt{font-weight:bold;font-size:15px}
-.reader{position:relative;width:100%;height:170px;background:#000;border-radius:10px;overflow:hidden}.reader video,.reader canvas{width:100%;height:100%;object-fit:contain;display:block}.reader canvas{display:none}.reader canvas{transform-origin:0 0;touch-action:none}.reader.st{touch-action:none}.zb{position:absolute;right:4px;top:4px;z-index:2;display:none;gap:3px}.reader.st .zb{display:flex}.zb button{margin:0;padding:4px 10px;font-size:18px;background:#fffc}.ph{position:absolute;inset:0;color:#aaa;display:flex;align-items:center;justify-content:center}
+.reader{position:relative;width:100%;height:170px;background:#000;border-radius:10px;overflow:hidden}.reader video,.reader canvas{width:100%;height:100%;object-fit:contain;display:block}.reader canvas{display:none}.reader canvas{transform-origin:0 0;touch-action:none}.reader.st{touch-action:none}.zb{position:absolute;right:4px;top:4px;z-index:5;display:none;gap:4px}.reader canvas{position:relative;z-index:1}.reader #vid{position:relative;z-index:1}.ph{z-index:0}.reader.st .zb{display:flex}.zb button{margin:0;padding:6px 12px;font-size:20px;background:#fffe;border:1px solid #333;touch-action:manipulation}.ph{position:absolute;inset:0;color:#aaa;display:flex;align-items:center;justify-content:center}
 #vid{display:none}.reader #vid{display:block;object-fit:cover}.cam{display:flex;gap:6px}.snap{flex:3;flex:3;background:#0a5fb4;color:#fff;font-size:22px;padding:16px;font-weight:bold}.redo,.upb{flex:1;font-size:16px}
 .th{width:44px;height:44px;object-fit:cover;margin:1px;cursor:pointer}#big{position:fixed;inset:0;background:#000d;display:none;z-index:9}#big img{width:100%;height:100%;object-fit:contain}.pi{max-width:160px;max-height:120px;margin:2px}
 table{width:100%;border-collapse:collapse;font-size:13px;background:#fff}td,th{border:1px solid #444;padding:4px}
@@ -22,7 +22,7 @@ table{width:100%;border-collapse:collapse;font-size:13px;background:#fff}td,th{b
 #pr{display:none}
 @media print{body>*:not(#pr){display:none!important}#pr{display:block}body{background:#fff}#pr h2{text-align:center}}
 </style></head><body>
-<h1>Manual Keyed Report <span id="dt"></span></h1>
+<h1>Manual Keyed Report <span id="dt"></span> <small style="font-size:11px;color:#888">v7</small></h1>
 <div class="row"><input id="reg" name="mkr_register" placeholder="Register #" inputmode="numeric" autocomplete="off"><input id="nm" name="mkr_cashier" placeholder="Name" autocomplete="off" autocorrect="off"></div>
 <div class="blk" id="bu"><div class="bt">UPC picture</div><div class="reader" id="ru"><canvas id="cu"></canvas><div class="zb"><button data-z="+">+</button><button data-z="-">−</button><button data-z="0">⟲</button></div><div class="ph">Tap 📸 to use camera</div></div>
 <div class="cam"><button class="snap" data-b="u">📸 Take picture</button><button class="redo" data-b="u">↺ Redo</button><button class="upb" data-b="u">🖼 Upload</button><input id="fu" type="file" accept="image/*" hidden></div>
@@ -71,7 +71,7 @@ async function readLabel(){const seen=new Map();for(const mode of['stretch','inv
   for(const w of d.words||[]){const t=w.text.replace(/^[^\w&]+|[^\w&'.]+$/g,'').replace(/[^\w'&.-]/g,'');if(w.confidence<60||!realWord(t))continue;const k=t.toLowerCase(),h=w.bbox.y1-w.bbox.y0,o=seen.get(k);if(!o||o.h<h)seen.set(k,{t,h,y:w.bbox.y0,x:w.bbox.x0})}}
  return [...seen.values()].sort((a,b)=>b.h-a.h||a.y-b.y||a.x-b.x).slice(0,6).map(w=>w.t).join(' ')}
 const vid=$('vid');let stream=null,st=null,act=null;const have={u:false,l:false},tok={u:0,l:0};
-function showStill(k,on){if(Z[k]&&have[k]!==on)zr(k);have[k]=on;$('r'+k).classList.toggle('st',on);$('c'+k).style.display=on?'block':'none';$('r'+k).querySelector('.ph').style.display=on?'none':'flex'}
+function showStill(k,on){if(Z[k]&&have[k]!==on)zr(k);have[k]=on;$('r'+k).classList.toggle('st',on);$('r'+k).querySelector('.zb').style.display=on?'flex':'none';$('c'+k).style.display=on?'block':'none';$('r'+k).querySelector('.ph').style.display=on?'none':'flex'}
 async function activate(k){act=k;['u','l'].forEach(x=>$('b'+x).classList.toggle('act',x==k));showStill(k,false);$('r'+k).appendChild(vid);$('r'+k).querySelector('.ph').style.display='none';
  try{if(!stream){stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1920},height:{ideal:1080}},audio:false});vid.srcObject=stream}await vid.play()}catch(e){msg('Camera unavailable – use Upload or type. '+e)}}
 function idle(){act=null;document.body.appendChild(vid);['u','l'].forEach(x=>showStill(x,have[x]));['u','l'].forEach(x=>$('b'+x).classList.remove('act'))}
@@ -95,18 +95,22 @@ function jpg(k){if(!have[k])return null;const c=$('c'+k),s=Math.min(1,800/c.widt
 const Z={};function zs(k,z,tx,ty){const r=$('r'+k),W=r.clientWidth,H=r.clientHeight;z=Math.max(1,Math.min(5,z));tx=Math.min(0,Math.max(W-W*z,tx));ty=Math.min(0,Math.max(H-H*z,ty));Z[k]={z,tx,ty};$('c'+k).style.transform=`translate(${tx}px,${ty}px) scale(${z})`}
 function zAt(k,nz,px,py){const o=Z[k]||{z:1,tx:0,ty:0};const f=Math.max(1,Math.min(5,nz))/o.z;zs(k,o.z*f,px-(px-o.tx)*f,py-(py-o.ty)*f)}
 const zr=k=>zs(k,1,0,0);
-['u','l'].forEach(k=>{const r=$('r'+k),P=new Map();let last=0,d0=0,z0=1,m0=null;zr(k);
- r.querySelectorAll('.zb button').forEach(b=>{b.onpointerdown=e=>e.stopPropagation();b.onclick=e=>{e.stopPropagation();const W=r.clientWidth/2,H=r.clientHeight/2,o=Z[k];b.dataset.z=='0'?zr(k):zAt(k,o.z*(b.dataset.z=='+'?1.5:1/1.5),W,H)}});
- const pt=e=>{const b=r.getBoundingClientRect();return[e.clientX-b.left,e.clientY-b.top]};
- r.addEventListener('pointerdown',e=>{if(!have[k])return;r.setPointerCapture(e.pointerId);P.set(e.pointerId,pt(e));
-  if(P.size==2){const[a,b]=[...P.values()];d0=Math.hypot(a[0]-b[0],a[1]-b[1]);z0=Z[k].z}m0=pt(e)});
- r.addEventListener('pointermove',e=>{if(!P.has(e.pointerId))return;e.preventDefault();const p=pt(e),q=P.get(e.pointerId);P.set(e.pointerId,p);
-  if(P.size==2){const[a,b]=[...P.values()];const d=Math.hypot(a[0]-b[0],a[1]-b[1]);if(d0)zAt(k,z0*d/d0,(a[0]+b[0])/2,(a[1]+b[1])/2)}
-  else if(Z[k].z>1){const o=Z[k];zs(k,o.z,o.tx+p[0]-q[0],o.ty+p[1]-q[1])}});
- const up=e=>{if(!P.has(e.pointerId))return;P.delete(e.pointerId);d0=0;if(e.type!='pointerup'||P.size)return;const p=pt(e);
-  if(m0&&Math.hypot(p[0]-m0[0],p[1]-m0[1])<15){const t=Date.now();if(t-last<300){Z[k].z>1?zr(k):zAt(k,2.5,p[0],p[1]);last=0}else last=t}};
- r.addEventListener('pointerup',up);r.addEventListener('pointercancel',up);
- r.addEventListener('touchmove',e=>{if(have[k])e.preventDefault()},{passive:false});r.addEventListener('gesturestart',e=>e.preventDefault())});
+['u','l'].forEach(k=>{const r=$('r'+k);let last=0,d0=0,z0=1,m0=null,prev=null,moved=false;zr(k);
+ r.querySelectorAll('.zb button').forEach(b=>{['touchstart','pointerdown','mousedown'].forEach(ev=>b.addEventListener(ev,e=>e.stopPropagation(),{passive:true}));const act=e=>{e.stopPropagation();e.preventDefault();const W=r.clientWidth/2,H=r.clientHeight/2,o=Z[k];b.dataset.z=='0'?zr(k):zAt(k,o.z*(b.dataset.z=='+'?1.5:1/1.5),W,H)};b.onclick=act;b.addEventListener('touchend',act,{passive:false})});
+ const pt=t=>{const b=r.getBoundingClientRect();return[t.clientX-b.left,t.clientY-b.top]};
+ const two=ts=>{const a=pt(ts[0]),b=pt(ts[1]);return{d:Math.hypot(a[0]-b[0],a[1]-b[1]),c:[(a[0]+b[0])/2,(a[1]+b[1])/2]}};
+ function start(ts){if(ts.length>=2){const g=two(ts);d0=g.d;z0=Z[k].z;prev=g.c;moved=true}else{prev=pt(ts[0]);m0=prev;moved=false}}
+ function move(ts){if(ts.length>=2&&d0){const g=two(ts);const o=Z[k];zAt(k,z0*g.d/d0,g.c[0],g.c[1]);const n=Z[k];zs(k,n.z,n.tx+g.c[0]-prev[0],n.ty+g.c[1]-prev[1]);prev=g.c}
+  else if(ts.length==1&&prev){const p=pt(ts[0]);if(m0&&Math.hypot(p[0]-m0[0],p[1]-m0[1])>10)moved=true;const o=Z[k];if(o.z>1)zs(k,o.z,o.tx+p[0]-prev[0],o.ty+p[1]-prev[1]);prev=p}}
+ function end(rem,p){if(rem.length){start(rem);moved=true;return}d0=0;prev=null;if(moved||!p)return;const t=Date.now();if(t-last<350){Z[k].z>1?zr(k):zAt(k,2.5,p[0],p[1]);last=0}else last=t}
+ r.addEventListener('touchstart',e=>{if(!have[k])return;e.preventDefault();start(e.touches)},{passive:false});
+ r.addEventListener('touchmove',e=>{if(!have[k])return;e.preventDefault();move(e.touches)},{passive:false});
+ r.addEventListener('touchend',e=>{if(!have[k])return;e.preventDefault();end(e.touches,e.changedTouches[0]&&pt(e.changedTouches[0]))},{passive:false});
+ r.addEventListener('touchcancel',()=>{d0=0;prev=null});
+ // mouse fallback (desktop)
+ let md=false;r.addEventListener('mousedown',e=>{if(!have[k])return;md=true;start([e])});addEventListener('mousemove',e=>{if(md)move([e])});addEventListener('mouseup',e=>{if(md){md=false;end([],pt(e))}});
+ r.addEventListener('wheel',e=>{if(!have[k])return;e.preventDefault();const p=pt(e);zAt(k,Z[k].z*(e.deltaY<0?1.15:1/1.15),p[0],p[1])},{passive:false});
+ ['gesturestart','gesturechange'].forEach(ev=>r.addEventListener(ev,e=>e.preventDefault()))});
 window.big=src=>{$('bigi').src=src;$('big').style.display='block'};
 function prep(img,mode){const sc=Math.min(2.5,Math.max(1,1600/Math.max(img.width,img.height))),c=document.createElement('canvas');c.width=img.width*sc;c.height=img.height*sc;const g=c.getContext('2d');g.drawImage(img,0,0,c.width,c.height);
  const d=g.getImageData(0,0,c.width,c.height),p=d.data,hist=new Uint32Array(256),n=p.length/4;for(let i=0;i<p.length;i+=4){const v=(.3*p[i]+.59*p[i+1]+.11*p[i+2])|0;p[i]=v;hist[v]++}
