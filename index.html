@@ -12,7 +12,11 @@ button{font-size:18px;padding:12px;border:0;border-radius:10px;background:#ddd;m
 #save{background:#c8102e;color:#fff;font-size:26px;width:100%;padding:20px;font-weight:bold}
 .deps{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.deps button{padding:14px 4px;font-size:15px}
 .deps button.on,.rs button.on{background:#0a7d3b;color:#fff}.rs{display:flex;gap:6px}.rs button{flex:1;padding:16px}
-#reader{position:relative;width:100%;height:200px;background:#000;border-radius:10px;overflow:hidden}#reader video,#reader canvas{width:100%;height:100%;object-fit:cover;display:block}#still{display:none}.cam{display:flex;gap:6px}#snap{flex:3;background:#0a5fb4;color:#fff;font-size:22px;padding:16px;font-weight:bold}#redo{flex:1;font-size:20px}
+
+.blk{background:#fff;border-radius:12px;padding:6px;margin:6px 0;border:3px solid transparent}.blk.act{border-color:#0a5fb4}.bt{font-weight:bold;font-size:15px}
+.reader{position:relative;width:100%;height:170px;background:#000;border-radius:10px;overflow:hidden}.reader video,.reader canvas{width:100%;height:100%;object-fit:contain;display:block}.reader canvas{display:none}.ph{position:absolute;inset:0;color:#aaa;display:flex;align-items:center;justify-content:center}
+#vid{display:none}.reader #vid{display:block;object-fit:cover}.cam{display:flex;gap:6px}.snap{flex:3;flex:3;background:#0a5fb4;color:#fff;font-size:22px;padding:16px;font-weight:bold}.redo,.upb{flex:1;font-size:16px}
+.th{width:44px;height:44px;object-fit:cover;margin:1px;cursor:pointer}#big{position:fixed;inset:0;background:#000d;display:none;z-index:9}#big img{width:100%;height:100%;object-fit:contain}.pi{max-width:160px;max-height:120px;margin:2px}
 table{width:100%;border-collapse:collapse;font-size:13px;background:#fff}td,th{border:1px solid #444;padding:4px}
 .tools{display:flex;flex-wrap:wrap;gap:5px}.tools button{flex:1}#msg{font-size:14px;color:#555;min-height:18px}
 #pr{display:none}
@@ -20,11 +24,13 @@ table{width:100%;border-collapse:collapse;font-size:13px;background:#fff}td,th{b
 </style></head><body>
 <h1>Manual Keyed Report <span id="dt"></span></h1>
 <div class="row"><input id="reg" name="mkr_register" placeholder="Register #" inputmode="numeric" autocomplete="off"><input id="nm" name="mkr_cashier" placeholder="Name" autocomplete="off" autocorrect="off"></div>
-<div id="step" style="font-weight:bold;margin:4px 0">Step 1: UPC picture</div>
-<div id="reader"><video id="vid" playsinline muted autoplay></video><canvas id="still"></canvas></div>
-<div class="cam"><button id="snap">📸 Take picture</button><button id="redo">↺ Redo</button><button id="upb">🖼 Upload</button><input id="upf" type="file" accept="image/*" hidden></div>
-<input id="upc" name="mkr_upc" placeholder="UPC" inputmode="numeric" autocomplete="off">
-<input id="pn" name="mkr_item_desc" placeholder="Product name" autocomplete="off" autocorrect="off" spellcheck="false">
+<div class="blk" id="bu"><div class="bt">UPC picture</div><div class="reader" id="ru"><canvas id="cu"></canvas><div class="ph">Tap 📸 to use camera</div></div>
+<div class="cam"><button class="snap" data-b="u">📸 Take picture</button><button class="redo" data-b="u">↺ Redo</button><button class="upb" data-b="u">🖼 Upload</button><input id="fu" type="file" accept="image/*" hidden></div>
+<input id="upc" name="mkr_upc" placeholder="UPC" inputmode="numeric" autocomplete="off"></div>
+<div class="blk" id="bl"><div class="bt">Label picture</div><div class="reader" id="rl"><canvas id="cl"></canvas><div class="ph">Tap 📸 to use camera</div></div>
+<div class="cam"><button class="snap" data-b="l">📸 Take picture</button><button class="redo" data-b="l">↺ Redo</button><button class="upb" data-b="l">🖼 Upload</button><input id="fl" type="file" accept="image/*" hidden></div>
+<input id="pn" name="mkr_item_desc" placeholder="Product name" autocomplete="off" autocorrect="off" spellcheck="false"></div>
+<video id="vid" playsinline muted autoplay></video>
 <div id="msg"></div>
 <input id="price" name="mkr_amt" placeholder="Price" inputmode="decimal" autocomplete="off">
 <div class="deps" id="deps"></div>
@@ -32,9 +38,9 @@ table{width:100%;border-collapse:collapse;font-size:13px;background:#fff}td,th{b
 <input id="oth" name="mkr_why" autocomplete="off" placeholder="Reason (required)" style="display:none">
 <button id="save">SAVE ✓</button>
 <h1>Entries (<span id="cnt">0</span>)</h1>
-<table><thead><tr><th>Product</th><th>UPC</th><th>Price</th><th>Dept</th><th>Reason</th><th>Name</th><th></th></tr></thead><tbody id="tb"></tbody></table>
+<table><thead><tr><th>Product</th><th>UPC</th><th>Price</th><th>Dept</th><th>Reason</th><th>Name</th><th>Photos</th><th></th></tr></thead><tbody id="tb"></tbody></table>
 <div class="tools"><button onclick="print()">Print</button><button id="csv">CSV / Share</button><button id="clr">Clear all</button><button id="ed">Edit depts</button></div>
-<div id="pr"></div>
+<div id="pr"></div><div id="big" onclick="this.style.display='none'"><img id="bigi"></div>
 <script>
 const $=id=>document.getElementById(id),L=localStorage;
 const today=new Date().toLocaleDateString();$('dt').textContent=today;
@@ -46,10 +52,6 @@ function drawDeps(){$('deps').innerHTML='';deps.forEach(d=>{const b=document.cre
 document.querySelectorAll('.rs button').forEach(b=>b.onclick=()=>setR(b.dataset.r));
 function setR(r){reason=r;document.querySelectorAll('.rs button').forEach(x=>x.classList.toggle('on',x.dataset.r==r));$('oth').style.display=r=='Other'?'block':'none';if(r=='Other')$('oth').focus()}
 const msg=t=>$('msg').textContent=t;
-let stream=null,frozen=false;const vid=$('vid'),st=$('still');
-async function startScan(){frozen=false;st.style.display='none';vid.style.display='block';$('snap').disabled=false;
- try{if(!stream){stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1920},height:{ideal:1080}},audio:false});vid.srcObject=stream}await vid.play()}catch(e){msg('Camera unavailable – type UPC. '+e)}}
-function stopScan(){}
 function crops(src){const W=src.width,H=src.height,out=[];
  const mk=(x,y,w,h,rot,boost)=>{const c=document.createElement('canvas');const s=Math.min(1,1600/Math.max(w,h));const cw=Math.round(w*s),ch=Math.round(h*s);
   c.width=rot?ch:cw;c.height=rot?cw:ch;const g=c.getContext('2d');if(rot){g.translate(c.width/2,c.height/2);g.rotate(Math.PI/2);g.drawImage(src,x,y,w,h,-cw/2,-ch/2,cw,ch)}else g.drawImage(src,x,y,w,h,0,0,cw,ch);
@@ -61,7 +63,6 @@ const ck=s=>{if(!/^\d+$/.test(s)||![8,12,13].includes(s.length))return false;con
 const okCode=t=>{t=(t||'').replace(/\D/g,'');return t.length==12||t.length==13||t.length==8?(ck(t)?t:null):(t.length>=6?t:null)};
 async function decodeStill(){if('BarcodeDetector'in window){try{const bd=new BarcodeDetector({formats:['upc_a','upc_e','ean_13','ean_8','code_128']});for(const c of[st,...crops(st).slice(0,6)]){const r=await bd.detect(c);for(const x of r){const v=okCode(x.rawValue);if(v)return v}}}catch(e){}}
  for(const c of crops(st)){const v=okCode(zxDecode(c));if(v)return v;await new Promise(r=>setTimeout(r,0))}return null}
-let step='upc';function setStep(x){step=x;$('step').textContent=x=='upc'?'Step 1: UPC picture (barcode + numbers)':'Step 2: Label picture (product name)'}
 let tw,twP;function loadT(){return twP||(twP=(async()=>{if(!window.Tesseract)await new Promise((r,j)=>{const s=document.createElement('script');s.src='https://unpkg.com/tesseract.js@5/dist/tesseract.min.js';s.onload=r;s.onerror=j;document.head.appendChild(s)});tw=await Tesseract.createWorker('eng');return tw})().catch(e=>{twP=null;throw e}))}
 setTimeout(()=>loadT().catch(()=>{}),300);
 async function ocr(c,digits){await loadT();await tw.setParameters({tessedit_char_whitelist:digits?'0123456789':'',tessedit_pageseg_mode:digits?'6':'11'});return (await tw.recognize(c)).data}
@@ -69,38 +70,53 @@ async function ocrDigits(){for(const c of[prep(st,'stretch'),prep(st,'bin')]){tr
 async function readLabel(){const seen=new Map();for(const mode of['stretch','inv','bin']){let d;try{d=await ocr(prep(st,mode),false)}catch(e){continue}
   for(const w of d.words||[]){const t=w.text.replace(/^[^\w&]+|[^\w&'.]+$/g,'').replace(/[^\w'&.-]/g,'');if(w.confidence<60||!realWord(t))continue;const k=t.toLowerCase(),h=w.bbox.y1-w.bbox.y0,o=seen.get(k);if(!o||o.h<h)seen.set(k,{t,h,y:w.bbox.y0,x:w.bbox.x0})}}
  return [...seen.values()].sort((a,b)=>b.h-a.h||a.y-b.y||a.x-b.x).slice(0,6).map(w=>w.t).join(' ')}
-$('snap').onclick=()=>{if(frozen||!vid.videoWidth)return;proc(vid,vid.videoWidth,vid.videoHeight)};
-$('upb').onclick=()=>$('upf').click();
-$('upf').onchange=e=>{const f=e.target.files[0];if(!f)return;const im=new Image();im.onload=()=>{const s=Math.min(1,2400/Math.max(im.naturalWidth,im.naturalHeight));frozen=false;proc(im,Math.round(im.naturalWidth*s),Math.round(im.naturalHeight*s));URL.revokeObjectURL(im.src)};im.src=URL.createObjectURL(f);e.target.value=''};
-async function proc(src,w,h){st.width=w;st.height=h;st.getContext('2d').drawImage(src,0,0,w,h);frozen=true;vid.pause();vid.style.display='none';st.style.display='block';$('snap').disabled=true;const my=step;
- if(my=='upc'){msg('Reading UPC…');let c=await decodeStill();if(!c){msg('Reading printed numbers… (first time ~10s)');c=await ocrDigits()}if(!frozen||step!=my)return;
-  if(c){navigator.vibrate&&navigator.vibrate(80);$('upc').value=c.replace(/\D/g,'');setStep('label');startScan();msg('UPC '+$('upc').value+' ✓ – now take picture of the label')}else msg('UPC not clear – retake: fill the frame with the barcode, hold steady, avoid glare (↺ Redo) or type it')}
- else{msg('Reading label… (first time ~10s)');let t='';try{t=await readLabel()}catch(e){}if(!frozen||step!=my)return;
-  if($('pn').value)msg('Kept the name you typed');else if(t){$('pn').value=t;msg('Check/edit the name')}else msg('Could not read label – tap ↺ Redo or type the name');$('price').focus()}};
-$('redo').onclick=()=>{if(step=='label'&&!frozen)setStep('upc');startScan();msg('')};
+const vid=$('vid');let stream=null,st=null,act=null;const have={u:false,l:false},tok={u:0,l:0};
+function showStill(k,on){have[k]=on;$('c'+k).style.display=on?'block':'none';$('r'+k).querySelector('.ph').style.display=on?'none':'flex'}
+async function activate(k){act=k;['u','l'].forEach(x=>$('b'+x).classList.toggle('act',x==k));showStill(k,false);$('r'+k).appendChild(vid);$('r'+k).querySelector('.ph').style.display='none';
+ try{if(!stream){stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1920},height:{ideal:1080}},audio:false});vid.srcObject=stream}await vid.play()}catch(e){msg('Camera unavailable – use Upload or type. '+e)}}
+function idle(){act=null;document.body.appendChild(vid);['u','l'].forEach(x=>showStill(x,have[x]));['u','l'].forEach(x=>$('b'+x).classList.remove('act'))}
+function next(){const k=!have.u&&!$('upc').value?'u':!have.l?'l':null;if(k)activate(k);else idle()}
+async function proc(k,src,w,h){const c=$('c'+k);c.width=w;c.height=h;c.getContext('2d').drawImage(src,0,0,w,h);if(act==k)idle();showStill(k,true);const my=++tok[k];st=c;
+ if(k=='u'){msg('Reading UPC…');$('upc').value='';let v=await decodeStill();if(!v){msg('Reading printed numbers…');st=c;v=await ocrDigits()}if(my!=tok.u)return;
+  if(v){navigator.vibrate&&navigator.vibrate(80);$('upc').value=v;msg('UPC '+v+' ✓');if(!have.l)activate('l')}else msg('UPC not clear – ↺ Redo (fill frame, avoid glare), or type it from the picture')}
+ else{msg('Reading label…');const old=$('pn').value;let t='';try{t=await readLabel()}catch(e){}if(my!=tok.l)return;
+  if(old)msg('Kept the name you typed');else if(t){$('pn').value=t;msg('Check/edit the name')}else msg('Could not read label – type the name from the picture');$('price').focus()}}
+document.querySelectorAll('.snap').forEach(b=>b.onclick=()=>{const k=b.dataset.b;if(act!=k||!vid.videoWidth)return activate(k);proc(k,vid,vid.videoWidth,vid.videoHeight)});
+document.querySelectorAll('.redo').forEach(b=>b.onclick=()=>{const k=b.dataset.b;tok[k]++;if(k=='u')$('upc').value='';activate(k);msg('')});
+document.querySelectorAll('.upb').forEach(b=>b.onclick=()=>$('f'+b.dataset.b).click());
+['u','l'].forEach(k=>$('f'+k).onchange=e=>{const f=e.target.files[0];if(!f)return;const im=new Image();im.onload=()=>{const s=Math.min(1,2400/Math.max(im.naturalWidth,im.naturalHeight));proc(k,im,Math.round(im.naturalWidth*s),Math.round(im.naturalHeight*s));URL.revokeObjectURL(im.src)};im.src=URL.createObjectURL(f);e.target.value=''});
+function resetBlocks(){tok.u++;tok.l++;showStill('u',false);showStill('l',false);activate('u')}
+// photo storage (IndexedDB)
+const dbp=new Promise((r,j)=>{const q=indexedDB.open('mkr',1);q.onupgradeneeded=()=>q.result.createObjectStore('ph');q.onsuccess=()=>r(q.result);q.onerror=()=>j(q.error)});
+const idb=async(m,f)=>{const d=await dbp;return new Promise((r,j)=>{const t=d.transaction('ph',m),q=f(t.objectStore('ph'));t.oncomplete=()=>r(q&&q.result);t.onerror=()=>j(t.error)})};
+const putPh=(id,v)=>idb('readwrite',s=>s.put(v,id)),getPh=id=>idb('readonly',s=>s.get(id)),delPh=id=>idb('readwrite',s=>s.delete(id));
+function jpg(k){if(!have[k])return null;const c=$('c'+k),s=Math.min(1,800/c.width),o=document.createElement('canvas');o.width=Math.round(c.width*s);o.height=Math.round(c.height*s);o.getContext('2d').drawImage(c,0,0,o.width,o.height);return o.toDataURL('image/jpeg',.7)}
+window.big=src=>{$('bigi').src=src;$('big').style.display='block'};
 function prep(img,mode){const sc=Math.min(2.5,Math.max(1,1600/Math.max(img.width,img.height))),c=document.createElement('canvas');c.width=img.width*sc;c.height=img.height*sc;const g=c.getContext('2d');g.drawImage(img,0,0,c.width,c.height);
  const d=g.getImageData(0,0,c.width,c.height),p=d.data,hist=new Uint32Array(256),n=p.length/4;for(let i=0;i<p.length;i+=4){const v=(.3*p[i]+.59*p[i+1]+.11*p[i+2])|0;p[i]=v;hist[v]++}
  let lo=0,hi=255,acc=0;while(lo<255&&(acc+=hist[lo])<n*.02)lo++;acc=0;while(hi>0&&(acc+=hist[hi])<n*.02)hi--;if(hi<=lo){lo=0;hi=255}let sum=0;
  for(let i=0;i<p.length;i+=4){let v=Math.max(0,Math.min(255,(p[i]-lo)*255/(hi-lo)));if(mode=='inv')v=255-v;p[i]=v;sum+=v}const m=sum/n;
  for(let i=0;i<p.length;i+=4){let v=p[i];if(mode=='bin')v=v>m?255:0;p[i]=p[i+1]=p[i+2]=v}g.putImageData(d,0,0);return c}
 const realWord=w=>/^[A-Za-z][A-Za-z'&.-]*$/.test(w)&&w.length>=2&&/[aeiouyAEIOUY]/.test(w)&&!/(.)\1\1/.test(w)||/^\d+(\.\d+)?(oz|fl|ct|lb|g|ml|L)$/i.test(w);
-$('save').onclick=()=>{const it={pn:$('pn').value.trim(),upc:$('upc').value.trim(),price:$('price').value.trim(),dep,reason:reason=='Other'?$('oth').value.trim():reason,nm:$('nm').value,reg:$('reg').value,date:today};
+$('save').onclick=async()=>{const it={id:(editIx>=0&&items[editIx].id)||Date.now()+'',pn:$('pn').value.trim(),upc:$('upc').value.trim(),price:$('price').value.trim(),dep,reason:reason=='Other'?$('oth').value.trim():reason,nm:$('nm').value,reg:$('reg').value,date:today};
  if(!it.upc&&!it.pn)return msg('Need a UPC or name');if(!it.price)return $('price').focus(),msg('Enter price');if(reason=='Other'&&!it.reason)return $('oth').focus(),msg('Enter reason');
  if(it.price&&!isNaN(it.price))it.price=(+it.price).toFixed(2);
+ const ph={u:jpg('u'),l:jpg('l')};if(ph.u||ph.l||editIx<0)try{await putPh(it.id,ph)}catch(e){msg('Photo save failed: '+e)}
  if(editIx>=0){items[editIx]=it;editIx=-1}else items.push(it);L.items=JSON.stringify(items);draw();
- ['pn','upc','price','oth'].forEach(i=>$(i).value='');setR('Not on file');setStep('upc');msg('Saved ✓ – take next UPC picture');startScan()};
-function draw(){$('cnt').textContent=items.length;$('tb').innerHTML=items.map((t,i)=>`<tr><td>${esc(t.pn)}</td><td>${t.upc}</td><td>${t.price}</td><td>${esc(t.dep)}</td><td>${esc(t.reason)}</td><td>${esc(t.nm)}</td><td><button onclick="ed(${i})">✎</button><button onclick="del(${i})">✕</button></td></tr>`).join('');
- $('pr').innerHTML=`<h2>Manual Keyed Report</h2><p>Date: ${today} &nbsp; Register #: ${esc($('reg').value)}</p><table><tr><th>Product Name</th><th>UPC</th><th>Price</th><th>Department</th><th>Reason</th><th>Name</th></tr>${items.map(t=>`<tr><td>${esc(t.pn)}</td><td>${t.upc}</td><td>$${t.price}</td><td>${esc(t.dep)}</td><td>${esc(t.reason)}</td><td>${esc(t.nm)}</td></tr>`).join('')}</table>`}
+ ['pn','upc','price','oth'].forEach(i=>$(i).value='');setR('Not on file');resetBlocks();msg('Saved ✓ – take next UPC picture')};
+function draw(){$('cnt').textContent=items.length;$('tb').innerHTML=items.map((t,i)=>`<tr><td>${esc(t.pn)}</td><td>${t.upc}</td><td>${t.price}</td><td>${esc(t.dep)}</td><td>${esc(t.reason)}</td><td>${esc(t.nm)}</td><td id="tp${i}"></td><td><button onclick="ed(${i})">✎</button><button onclick="del(${i})">✕</button></td></tr>`).join('');
+ $('pr').innerHTML=`<h2>Manual Keyed Report</h2><p>Date: ${today} &nbsp; Register #: ${esc($('reg').value)}</p><table><tr><th>Product Name</th><th>UPC</th><th>Price</th><th>Department</th><th>Reason</th><th>Name</th><th>Photos</th></tr>${items.map((t,i)=>`<tr><td>${esc(t.pn)}</td><td>${t.upc}</td><td>$${t.price}</td><td>${esc(t.dep)}</td><td>${esc(t.reason)}</td><td>${esc(t.nm)}</td><td id="pp${i}"></td></tr>`).join('')}</table>`;
+ items.forEach(async(t,i)=>{if(!t.id)return;let p;try{p=await getPh(t.id)}catch(e){}if(!p)return;const im=[p.u,p.l].filter(Boolean);const a=$('tp'+i),b=$('pp'+i);if(a)a.innerHTML=im.map(x=>`<img class="th" src="${x}" onclick="big(this.src)">`).join('');if(b)b.innerHTML=im.map(x=>`<img class="pi" src="${x}">`).join('')})}
 const esc=s=>String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-window.del=i=>{if(confirm('Delete?')){items.splice(i,1);L.items=JSON.stringify(items);draw()}};
-window.ed=i=>{const t=items[i];editIx=i;$('pn').value=t.pn;$('upc').value=t.upc;$('price').value=t.price;dep=t.dep;drawDeps();if(t.reason=='Not on file')setR(t.reason);else{setR('Other');$('oth').value=t.reason}scrollTo(0,0);msg('Editing – tap SAVE')};
-$('clr').onclick=()=>{if(confirm('Clear all entries?')){items=[];L.items='[]';draw()}};
+window.del=i=>{if(confirm('Delete?')){if(items[i].id)delPh(items[i].id).catch(()=>{});items.splice(i,1);L.items=JSON.stringify(items);draw()}};
+window.ed=async i=>{const t=items[i];editIx=i;resetBlocks();idle();if(t.id){const p=await getPh(t.id).catch(()=>null);if(p)for(const k of['u','l'])if(p[k]){const im=new Image();im.onload=()=>{const c=$('c'+k);c.width=im.width;c.height=im.height;c.getContext('2d').drawImage(im,0,0);showStill(k,true)};im.src=p[k]}}$('pn').value=t.pn;$('upc').value=t.upc;$('price').value=t.price;dep=t.dep;drawDeps();if(t.reason=='Not on file')setR(t.reason);else{setR('Other');$('oth').value=t.reason}scrollTo(0,0);msg('Editing – tap SAVE')};
+$('clr').onclick=()=>{if(confirm('Clear all entries?')){idb('readwrite',s=>s.clear()).catch(()=>{});items=[];L.items='[]';draw()}};
 $('ed').onclick=()=>{const v=prompt('Departments, comma separated',deps.join(', '));if(v){deps=v.split(',').map(s=>s.trim()).filter(Boolean);L.deps2=JSON.stringify(deps);drawDeps()}};
 $('csv').onclick=async()=>{const q=s=>'"'+String(s||'').replace(/"/g,'""')+'"';
  const csv=['Date,Register,Product Name,UPC,Price,Department,Reason,Name',...items.map(t=>[t.date,t.reg,t.pn,t.upc,t.price,t.dep,t.reason,t.nm].map(q).join(','))].join('\n');
  const f=new File([csv],'manual-keyed-report.csv',{type:'text/csv'});
  if(navigator.canShare&&navigator.canShare({files:[f]}))try{await navigator.share({files:[f],title:'Manual Keyed Report'});return}catch(e){}
  const a=document.createElement('a');a.href=URL.createObjectURL(f);a.download=f.name;a.click()};
-draw();setStep('upc');startScan();
+$('upc').value='';$('pn').value='';draw();resetBlocks();
 if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
 </script></body></html>
