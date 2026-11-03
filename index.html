@@ -3,7 +3,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Keyed Report">
 <link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="icon.png">
 <title>Manual Keyed Report</title>
-<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
 <style>
 *{box-sizing:border-box}body{font:18px -apple-system,sans-serif;margin:0;padding:8px 10px 40px;background:#f4f4f4}
 h1{font-size:18px;margin:4px 0}.row{display:flex;gap:6px}.row>*{flex:1}
@@ -12,23 +12,24 @@ button{font-size:18px;padding:12px;border:0;border-radius:10px;background:#ddd;m
 #save{background:#c8102e;color:#fff;font-size:26px;width:100%;padding:20px;font-weight:bold}
 .deps{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.deps button{padding:14px 4px;font-size:15px}
 .deps button.on,.rs button.on{background:#0a7d3b;color:#fff}.rs{display:flex;gap:6px}.rs button{flex:1;padding:16px}
-#reader{width:100%;min-height:120px;background:#000;border-radius:10px;overflow:hidden}
+#reader{position:relative;width:100%;height:200px;background:#000;border-radius:10px;overflow:hidden}#reader video,#reader canvas{width:100%;height:100%;object-fit:cover;display:block}#still{display:none}.cam{display:flex;gap:6px}#snap{flex:3;background:#0a5fb4;color:#fff;font-size:22px;padding:16px;font-weight:bold}#redo{flex:1;font-size:20px}
 table{width:100%;border-collapse:collapse;font-size:13px;background:#fff}td,th{border:1px solid #444;padding:4px}
 .tools{display:flex;flex-wrap:wrap;gap:5px}.tools button{flex:1}#msg{font-size:14px;color:#555;min-height:18px}
 #pr{display:none}
 @media print{body>*:not(#pr){display:none!important}#pr{display:block}body{background:#fff}#pr h2{text-align:center}}
 </style></head><body>
 <h1>Manual Keyed Report <span id="dt"></span></h1>
-<div class="row"><input id="reg" placeholder="Register #" inputmode="numeric"><input id="nm" placeholder="Name"></div>
-<div id="reader"></div>
-<div class="row"><input id="upc" placeholder="UPC" inputmode="numeric"><button id="ocr" style="flex:0 0 auto">📷 Label</button></div>
+<div class="row"><input id="reg" name="mkr_register" placeholder="Register #" inputmode="numeric" autocomplete="off"><input id="nm" name="mkr_cashier" placeholder="Name" autocomplete="off" autocorrect="off"></div>
+<div id="reader"><video id="vid" playsinline muted autoplay></video><canvas id="still"></canvas></div>
+<div class="cam"><button id="snap">📸 Take picture</button><button id="redo">↺ Redo</button></div>
+<div class="row"><input id="upc" name="mkr_upc" placeholder="UPC" inputmode="numeric" autocomplete="off"><button id="ocr" style="flex:0 0 auto">📷 Label</button></div>
 <input type="file" id="ph" accept="image/*" capture="environment" hidden>
-<input id="pn" placeholder="Product name">
+<input id="pn" name="mkr_item_desc" placeholder="Product name" autocomplete="off" autocorrect="off" spellcheck="false">
 <div id="msg"></div>
-<input id="price" placeholder="Price" inputmode="decimal">
+<input id="price" name="mkr_amt" placeholder="Price" inputmode="decimal" autocomplete="off">
 <div class="deps" id="deps"></div>
 <div class="rs"><button data-r="Not on file" class="on">Not on file</button><button data-r="Other">Other</button></div>
-<input id="oth" placeholder="Reason (required)" style="display:none">
+<input id="oth" name="mkr_why" autocomplete="off" placeholder="Reason (required)" style="display:none">
 <button id="save">SAVE ✓</button>
 <h1>Entries (<span id="cnt">0</span>)</h1>
 <table><thead><tr><th>Product</th><th>UPC</th><th>Price</th><th>Dept</th><th>Reason</th><th>Name</th><th></th></tr></thead><tbody id="tb"></tbody></table>
@@ -45,11 +46,22 @@ function drawDeps(){$('deps').innerHTML='';deps.forEach(d=>{const b=document.cre
 document.querySelectorAll('.rs button').forEach(b=>b.onclick=()=>setR(b.dataset.r));
 function setR(r){reason=r;document.querySelectorAll('.rs button').forEach(x=>x.classList.toggle('on',x.dataset.r==r));$('oth').style.display=r=='Other'?'block':'none';if(r=='Other')$('oth').focus()}
 const msg=t=>$('msg').textContent=t;
-let sc,last='';
-async function startScan(){try{if(!sc)sc=new Html5Qrcode('reader',{formatsToSupport:[Html5QrcodeSupportedFormats.UPC_A,Html5QrcodeSupportedFormats.UPC_E,Html5QrcodeSupportedFormats.EAN_13,Html5QrcodeSupportedFormats.EAN_8,Html5QrcodeSupportedFormats.CODE_128]});
-await sc.start({facingMode:'environment'},{fps:15,qrbox:{width:260,height:110}},onCode);}catch(e){msg('Camera unavailable – type UPC. '+e)}}
-async function stopScan(){try{if(sc&&sc.isScanning)await sc.stop()}catch(e){}}
-async function onCode(c){if(c==last)return;last=c;navigator.vibrate&&navigator.vibrate(80);$('upc').value=c;await stopScan();$('price').focus();lookup(c)}
+let stream=null,frozen=false;const vid=$('vid'),st=$('still');
+async function startScan(){frozen=false;st.style.display='none';vid.style.display='block';$('snap').disabled=false;
+ try{if(!stream){stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1920},height:{ideal:1080}},audio:false});vid.srcObject=stream}await vid.play()}catch(e){msg('Camera unavailable – type UPC. '+e)}}
+function stopScan(){}
+function crops(src){const W=src.width,H=src.height,out=[];
+ const mk=(x,y,w,h,rot,boost)=>{const c=document.createElement('canvas');const s=Math.min(1,1600/Math.max(w,h));const cw=Math.round(w*s),ch=Math.round(h*s);
+  c.width=rot?ch:cw;c.height=rot?cw:ch;const g=c.getContext('2d');if(rot){g.translate(c.width/2,c.height/2);g.rotate(Math.PI/2);g.drawImage(src,x,y,w,h,-cw/2,-ch/2,cw,ch)}else g.drawImage(src,x,y,w,h,0,0,cw,ch);
+  if(boost){const d=g.getImageData(0,0,c.width,c.height),p=d.data;for(let i=0;i<p.length;i+=4){let v=.3*p[i]+.59*p[i+1]+.11*p[i+2];v=Math.max(0,Math.min(255,(v-128)*2+128));p[i]=p[i+1]=p[i+2]=v}g.putImageData(d,0,0)}return c};
+ for(const boost of[false,true])for(const rot of[false,true]){out.push(mk(0,0,W,H,rot,boost));out.push(mk(W*.1,H*.25,W*.8,H*.5,rot,boost));out.push(mk(W*.2,H*.1,W*.6,H*.8,rot,boost))}return out}
+let zx;function zxDecode(c){if(!window.ZXing)return null;if(!zx){zx=new ZXing.MultiFormatReader();const h=new Map();const F=ZXing.BarcodeFormat;h.set(ZXing.DecodeHintType.POSSIBLE_FORMATS,[F.UPC_A,F.UPC_E,F.EAN_13,F.EAN_8,F.CODE_128]);h.set(ZXing.DecodeHintType.TRY_HARDER,true);zx.setHints(h)}
+ try{const ls=new ZXing.HTMLCanvasElementLuminanceSource(c);return zx.decode(new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(ls))).getText()}catch(e){return null}}
+async function decodeStill(){if('BarcodeDetector'in window){try{const bd=new BarcodeDetector({formats:['upc_a','upc_e','ean_13','ean_8','code_128']});const r=await bd.detect(st);if(r.length)return r[0].rawValue}catch(e){}}
+ for(const c of crops(st)){const t=zxDecode(c);if(t)return t;await new Promise(r=>setTimeout(r,0))}return null}
+$('snap').onclick=async()=>{if(frozen||!vid.videoWidth)return;st.width=vid.videoWidth;st.height=vid.videoHeight;st.getContext('2d').drawImage(vid,0,0);frozen=true;vid.pause();vid.style.display='none';st.style.display='block';$('snap').disabled=true;msg('Reading barcode…');
+ const c=await decodeStill();if(!frozen)return;if(c){navigator.vibrate&&navigator.vibrate(80);$('upc').value=c;$('price').focus();lookup(c)}else msg('No barcode found – tap ↺ Redo, hold steady, fill the box with the barcode');};
+$('redo').onclick=()=>{startScan();msg('')};
 async function lookup(c){c=c.replace(/\D/g,'');if(!c)return;msg('Looking up…');
  const tries=[c,c.padStart(13,'0'),c.length==13&&c[0]=='0'?c.slice(1):null].filter(Boolean);
  for(const k of tries){try{const r=await fetch('https://world.openfoodfacts.org/api/v2/product/'+k+'.json?fields=product_name,brands,quantity');const j=await r.json();
@@ -57,10 +69,16 @@ async function lookup(c){c=c.replace(/\D/g,'');if(!c)return;msg('Looking up…')
  msg('Not found – type name or tap 📷 Label')}
 $('upc').onchange=()=>lookup($('upc').value);
 $('ocr').onclick=()=>$('ph').click();
+function prep(img){const sc=Math.max(1,1800/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=img.width*sc;c.height=img.height*sc;const g=c.getContext('2d');g.drawImage(img,0,0,c.width,c.height);
+ const d=g.getImageData(0,0,c.width,c.height),p=d.data;let sum=0;for(let i=0;i<p.length;i+=4){const v=.3*p[i]+.59*p[i+1]+.11*p[i+2];p[i]=v;sum+=v}const m=sum/(p.length/4);
+ for(let i=0;i<p.length;i+=4){const v=p[i]>m?255:0;p[i]=p[i+1]=p[i+2]=v}g.putImageData(d,0,0);return c}
+const realWord=w=>/^[A-Za-z][A-Za-z'&.-]*$/.test(w)&&w.length>=2&&/[aeiouyAEIOUY]/.test(w)&&!/(.)\1\1/.test(w)||/^\d+(\.\d+)?(oz|fl|ct|lb|g|ml|L)?$/i.test(w);
 $('ph').onchange=async e=>{const f=e.target.files[0];if(!f)return;msg('Reading label… (first time ~10s)');
- if(!window.Tesseract)await new Promise(r=>{const s=document.createElement('script');s.src='https://unpkg.com/tesseract.js@5/dist/tesseract.min.js';s.onload=r;document.head.appendChild(s)});
- const {data}=await Tesseract.recognize(f,'eng');const lines=data.text.split('\n').map(s=>s.replace(/[^\w &'.%-]/g,'').trim()).filter(s=>s.length>2);
- $('pn').value=lines.slice(0,3).join(' ');msg('Check/edit the name');$('ph').value=''};
+ try{if(!window.Tesseract)await new Promise(r=>{const s=document.createElement('script');s.src='https://unpkg.com/tesseract.js@5/dist/tesseract.min.js';s.onload=r;document.head.appendChild(s)});
+ const img=await createImageBitmap(f);const {data}=await Tesseract.recognize(prep(img),'eng');
+ const lines=(data.lines||[]).map(l=>{const ws=(l.words||[]).filter(w=>w.confidence>=70&&realWord(w.text.replace(/[^\w'&.-]/g,'')));const h=ws.length?ws.reduce((a,w)=>a+(w.bbox.y1-w.bbox.y0),0)/ws.length:0;
+  return{t:ws.map(w=>w.text.replace(/[^\w'&.-]/g,'')).join(' '),h,ok:ws.length/Math.max(1,(l.words||[]).length)}}).filter(l=>l.t.length>=3&&l.ok>=.6).sort((a,b)=>b.h-a.h).slice(0,2);
+ if(!lines.length||$('pn').value){msg($('pn').value?'Kept name from UPC lookup':'Could not read label clearly – type the name');}else{$('pn').value=lines.map(l=>l.t).join(' ');msg('Check/edit the name')}}catch(err){msg('Label read failed – type the name')}$('ph').value=''};
 $('save').onclick=()=>{const it={pn:$('pn').value.trim(),upc:$('upc').value.trim(),price:$('price').value.trim(),dep,reason:reason=='Other'?$('oth').value.trim():reason,nm:$('nm').value,reg:$('reg').value,date:today};
  if(!it.upc&&!it.pn)return msg('Need a UPC or name');if(!it.price)return $('price').focus(),msg('Enter price');if(reason=='Other'&&!it.reason)return $('oth').focus(),msg('Enter reason');
  if(it.price&&!isNaN(it.price))it.price=(+it.price).toFixed(2);
