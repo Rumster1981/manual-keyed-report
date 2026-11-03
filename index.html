@@ -22,7 +22,7 @@ table{width:100%;border-collapse:collapse;font-size:13px;background:#fff}td,th{b
 <div class="row"><input id="reg" name="mkr_register" placeholder="Register #" inputmode="numeric" autocomplete="off"><input id="nm" name="mkr_cashier" placeholder="Name" autocomplete="off" autocorrect="off"></div>
 <div id="step" style="font-weight:bold;margin:4px 0">Step 1: UPC picture</div>
 <div id="reader"><video id="vid" playsinline muted autoplay></video><canvas id="still"></canvas></div>
-<div class="cam"><button id="snap">📸 Take picture</button><button id="redo">↺ Redo</button></div>
+<div class="cam"><button id="snap">📸 Take picture</button><button id="redo">↺ Redo</button><button id="upb">🖼 Upload</button><input id="upf" type="file" accept="image/*" hidden></div>
 <input id="upc" name="mkr_upc" placeholder="UPC" inputmode="numeric" autocomplete="off">
 <input id="pn" name="mkr_item_desc" placeholder="Product name" autocomplete="off" autocorrect="off" spellcheck="false">
 <div id="msg"></div>
@@ -69,7 +69,10 @@ async function ocrDigits(){for(const c of[prep(st,'stretch'),prep(st,'bin')]){tr
 async function readLabel(){const seen=new Map();for(const mode of['stretch','inv','bin']){let d;try{d=await ocr(prep(st,mode),false)}catch(e){continue}
   for(const w of d.words||[]){const t=w.text.replace(/^[^\w&]+|[^\w&'.]+$/g,'').replace(/[^\w'&.-]/g,'');if(w.confidence<60||!realWord(t))continue;const k=t.toLowerCase(),h=w.bbox.y1-w.bbox.y0,o=seen.get(k);if(!o||o.h<h)seen.set(k,{t,h,y:w.bbox.y0,x:w.bbox.x0})}}
  return [...seen.values()].sort((a,b)=>b.h-a.h||a.y-b.y||a.x-b.x).slice(0,6).map(w=>w.t).join(' ')}
-$('snap').onclick=async()=>{if(frozen||!vid.videoWidth)return;st.width=vid.videoWidth;st.height=vid.videoHeight;st.getContext('2d').drawImage(vid,0,0);frozen=true;vid.pause();vid.style.display='none';st.style.display='block';$('snap').disabled=true;const my=step;
+$('snap').onclick=()=>{if(frozen||!vid.videoWidth)return;proc(vid,vid.videoWidth,vid.videoHeight)};
+$('upb').onclick=()=>$('upf').click();
+$('upf').onchange=e=>{const f=e.target.files[0];if(!f)return;const im=new Image();im.onload=()=>{const s=Math.min(1,2400/Math.max(im.naturalWidth,im.naturalHeight));frozen=false;proc(im,Math.round(im.naturalWidth*s),Math.round(im.naturalHeight*s));URL.revokeObjectURL(im.src)};im.src=URL.createObjectURL(f);e.target.value=''};
+async function proc(src,w,h){st.width=w;st.height=h;st.getContext('2d').drawImage(src,0,0,w,h);frozen=true;vid.pause();vid.style.display='none';st.style.display='block';$('snap').disabled=true;const my=step;
  if(my=='upc'){msg('Reading UPC…');let c=await decodeStill();if(!c){msg('Reading printed numbers… (first time ~10s)');c=await ocrDigits()}if(!frozen||step!=my)return;
   if(c){navigator.vibrate&&navigator.vibrate(80);$('upc').value=c.replace(/\D/g,'');setStep('label');startScan();msg('UPC '+$('upc').value+' ✓ – now take picture of the label')}else msg('UPC not clear – retake: fill the frame with the barcode, hold steady, avoid glare (↺ Redo) or type it')}
  else{msg('Reading label… (first time ~10s)');let t='';try{t=await readLabel()}catch(e){}if(!frozen||step!=my)return;
