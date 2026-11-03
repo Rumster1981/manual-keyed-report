@@ -37,7 +37,7 @@ table{width:100%;border-collapse:collapse;font-size:13px;background:#fff}td,th{b
 <script>
 const $=id=>document.getElementById(id),L=localStorage;
 const today=new Date().toLocaleDateString();$('dt').textContent=today;
-let deps=JSON.parse(L.deps||'null')||['Grocery','Beverages','Dairy','Frozen','Produce','Meat','Seafood','Deli','Bakery','Health & Beauty','General Merch','Other'];
+let deps=JSON.parse(L.deps2||'null')||['Grocery','Grocery Taxable','General Mdse','HBC','Deli','Produce','Meat','Seafood','Bakery','Prepared Food','Floral','Kosher Meat','Sushi','Kosher Deli','Tobacco','Beer/Wine','Bottle Deposit','Charity','Starbucks','RX','Tele In','H/D In','Tele Out','H/D Out'];
 let dep=L.dep||'Grocery',reason='Not on file',items=JSON.parse(L.items||'[]'),editIx=-1;
 $('reg').value=L.reg||'';$('nm').value=L.nm||'Clark';
 $('reg').onchange=()=>L.reg=$('reg').value;$('nm').onchange=()=>L.nm=$('nm').value;
@@ -72,7 +72,7 @@ const esc=s=>String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&g
 window.del=i=>{if(confirm('Delete?')){items.splice(i,1);L.items=JSON.stringify(items);draw()}};
 window.ed=i=>{const t=items[i];editIx=i;$('pn').value=t.pn;$('upc').value=t.upc;$('price').value=t.price;dep=t.dep;drawDeps();if(t.reason=='Not on file')setR(t.reason);else{setR('Other');$('oth').value=t.reason}scrollTo(0,0);msg('Editing – tap SAVE')};
 $('clr').onclick=()=>{if(confirm('Clear all entries?')){items=[];L.items='[]';draw()}};
-$('ed').onclick=()=>{const v=prompt('Departments, comma separated',deps.join(', '));if(v){deps=v.split(',').map(s=>s.trim()).filter(Boolean);L.deps=JSON.stringify(deps);drawDeps()}};
+$('ed').onclick=()=>{const v=prompt('Departments, comma separated',deps.join(', '));if(v){deps=v.split(',').map(s=>s.trim()).filter(Boolean);L.deps2=JSON.stringify(deps);drawDeps()}};
 $('csv').onclick=async()=>{const q=s=>'"'+String(s||'').replace(/"/g,'""')+'"';
  const csv=['Date,Register,Product Name,UPC,Price,Department,Reason,Name',...items.map(t=>[t.date,t.reg,t.pn,t.upc,t.price,t.dep,t.reason,t.nm].map(q).join(','))].join('\n');
  const f=new File([csv],'manual-keyed-report.csv',{type:'text/csv'});
