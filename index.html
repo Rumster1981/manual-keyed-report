@@ -22,7 +22,7 @@ table{width:100%;border-collapse:collapse;font-size:13px;background:#fff}td,th{b
 #pr{display:none}
 @media print{body>*:not(#pr){display:none!important}#pr{display:block}body{background:#fff}#pr h2{text-align:center}}
 </style></head><body>
-<h1>Manual Keyed Report <span id="dt"></span> <small style="font-size:11px;color:#888">v10</small></h1>
+<h1>Manual Keyed Report <span id="dt"></span> <small style="font-size:11px;color:#888">v11</small></h1>
 <div class="row"><input id="reg" name="mkr_register" placeholder="Register #" inputmode="numeric" autocomplete="off"><input id="nm" name="mkr_cashier" placeholder="Name" autocomplete="off" autocorrect="off"></div>
 <div class="blk" id="bu"><div class="bt">UPC picture</div><div class="reader" id="ru"><canvas id="cu"></canvas><div class="zb"><button data-z="+">+</button><button data-z="-">−</button><button data-z="0">⟲</button></div><div class="ph">Tap 📸 to use camera</div></div>
 <div class="cam"><button class="snap" data-b="u">📸 Take picture</button><button class="redo" data-b="u">↺ Redo</button><button class="upb" data-b="u">🖼 Upload</button><input id="fu" type="file" accept="image/*" hidden></div>
@@ -122,6 +122,7 @@ function prep(img,mode){const sc=Math.min(2.5,Math.max(1,1600/Math.max(img.width
 const realWord=w=>/^[A-Za-z][A-Za-z'&.-]*$/.test(w)&&w.length>=2&&/[aeiouyAEIOUY]/.test(w)&&!/(.)\1\1/.test(w)||/^\d+(\.\d+)?(oz|fl|ct|lb|g|ml|L)$/i.test(w);
 $('save').onclick=async()=>{const it={id:(editIx>=0&&items[editIx].id)||Date.now()+'',pn:$('pn').value.trim(),upc:$('upc').value.trim(),price:$('price').value.trim(),dep,reason:reason=='Other'?$('oth').value.trim():reason,nm:$('nm').value,reg:$('reg').value,date:today};
  if(!it.price)return $('price').focus(),msg('Enter price');if(reason=='Other'&&!it.reason)return $('oth').focus(),msg('Enter reason');
+ if(!it.upc||!it.pn)alert('Incomplete entry 🚩 – '+(!it.upc&&!it.pn?'UPC and product name are':!it.upc?'UPC is':'Product name is')+' missing. It will be saved but flagged, and the report can’t be printed or sent until it’s filled in.');
  if(it.price&&!isNaN(it.price))it.price=(+it.price).toFixed(2);
  const ph={u:jpg('u'),l:jpg('l')};if(ph.u||ph.l||editIx<0)try{await putPh(it.id,ph)}catch(e){msg('Photo save failed: '+e)}
  if(editIx>=0){items[editIx]=it;editIx=-1}else items.push(it);L.items=JSON.stringify(items);draw();
