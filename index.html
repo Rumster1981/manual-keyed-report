@@ -1,0 +1,83 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Keyed Report">
+<link rel="manifest" href="manifest.json"><link rel="apple-touch-icon" href="icon.png">
+<title>Manual Keyed Report</title>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+*{box-sizing:border-box}body{font:18px -apple-system,sans-serif;margin:0;padding:8px 10px 40px;background:#f4f4f4}
+h1{font-size:18px;margin:4px 0}.row{display:flex;gap:6px}.row>*{flex:1}
+input,select,textarea{font-size:20px;padding:12px;width:100%;border:1px solid #aaa;border-radius:10px;margin:3px 0}
+button{font-size:18px;padding:12px;border:0;border-radius:10px;background:#ddd;margin:3px 0}
+#save{background:#c8102e;color:#fff;font-size:26px;width:100%;padding:20px;font-weight:bold}
+.deps{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}.deps button{padding:14px 4px;font-size:15px}
+.deps button.on,.rs button.on{background:#0a7d3b;color:#fff}.rs{display:flex;gap:6px}.rs button{flex:1;padding:16px}
+#reader{width:100%;min-height:120px;background:#000;border-radius:10px;overflow:hidden}
+table{width:100%;border-collapse:collapse;font-size:13px;background:#fff}td,th{border:1px solid #444;padding:4px}
+.tools{display:flex;flex-wrap:wrap;gap:5px}.tools button{flex:1}#msg{font-size:14px;color:#555;min-height:18px}
+#pr{display:none}
+@media print{body>*:not(#pr){display:none!important}#pr{display:block}body{background:#fff}#pr h2{text-align:center}}
+</style></head><body>
+<h1>Manual Keyed Report <span id="dt"></span></h1>
+<div class="row"><input id="reg" placeholder="Register #" inputmode="numeric"><input id="nm" placeholder="Name"></div>
+<div id="reader"></div>
+<div class="row"><input id="upc" placeholder="UPC" inputmode="numeric"><button id="ocr" style="flex:0 0 auto">📷 Label</button></div>
+<input type="file" id="ph" accept="image/*" capture="environment" hidden>
+<input id="pn" placeholder="Product name">
+<div id="msg"></div>
+<input id="price" placeholder="Price" inputmode="decimal">
+<div class="deps" id="deps"></div>
+<div class="rs"><button data-r="Not on file" class="on">Not on file</button><button data-r="Other">Other</button></div>
+<input id="oth" placeholder="Reason (required)" style="display:none">
+<button id="save">SAVE ✓</button>
+<h1>Entries (<span id="cnt">0</span>)</h1>
+<table><thead><tr><th>Product</th><th>UPC</th><th>Price</th><th>Dept</th><th>Reason</th><th>Name</th><th></th></tr></thead><tbody id="tb"></tbody></table>
+<div class="tools"><button onclick="print()">Print</button><button id="csv">CSV / Share</button><button id="clr">Clear all</button><button id="ed">Edit depts</button></div>
+<div id="pr"></div>
+<script>
+const $=id=>document.getElementById(id),L=localStorage;
+const today=new Date().toLocaleDateString();$('dt').textContent=today;
+let deps=JSON.parse(L.deps||'null')||['Grocery','Beverages','Dairy','Frozen','Produce','Meat','Seafood','Deli','Bakery','Health & Beauty','General Merch','Other'];
+let dep=L.dep||'Grocery',reason='Not on file',items=JSON.parse(L.items||'[]'),editIx=-1;
+$('reg').value=L.reg||'';$('nm').value=L.nm||'Clark';
+$('reg').onchange=()=>L.reg=$('reg').value;$('nm').onchange=()=>L.nm=$('nm').value;
+function drawDeps(){$('deps').innerHTML='';deps.forEach(d=>{const b=document.createElement('button');b.textContent=d;if(d==dep)b.className='on';b.onclick=()=>{dep=d;L.dep=d;drawDeps()};$('deps').appendChild(b)})}drawDeps();
+document.querySelectorAll('.rs button').forEach(b=>b.onclick=()=>setR(b.dataset.r));
+function setR(r){reason=r;document.querySelectorAll('.rs button').forEach(x=>x.classList.toggle('on',x.dataset.r==r));$('oth').style.display=r=='Other'?'block':'none';if(r=='Other')$('oth').focus()}
+const msg=t=>$('msg').textContent=t;
+let sc,last='';
+async function startScan(){try{if(!sc)sc=new Html5Qrcode('reader',{formatsToSupport:[Html5QrcodeSupportedFormats.UPC_A,Html5QrcodeSupportedFormats.UPC_E,Html5QrcodeSupportedFormats.EAN_13,Html5QrcodeSupportedFormats.EAN_8,Html5QrcodeSupportedFormats.CODE_128]});
+await sc.start({facingMode:'environment'},{fps:15,qrbox:{width:260,height:110}},onCode);}catch(e){msg('Camera unavailable – type UPC. '+e)}}
+async function stopScan(){try{if(sc&&sc.isScanning)await sc.stop()}catch(e){}}
+async function onCode(c){if(c==last)return;last=c;navigator.vibrate&&navigator.vibrate(80);$('upc').value=c;await stopScan();$('price').focus();lookup(c)}
+async function lookup(c){c=c.replace(/\D/g,'');if(!c)return;msg('Looking up…');
+ const tries=[c,c.padStart(13,'0'),c.length==13&&c[0]=='0'?c.slice(1):null].filter(Boolean);
+ for(const k of tries){try{const r=await fetch('https://world.openfoodfacts.org/api/v2/product/'+k+'.json?fields=product_name,brands,quantity');const j=await r.json();
+ if(j.status==1&&j.product.product_name){const p=j.product;if(!$('pn').value)$('pn').value=[p.brands&&p.brands.split(',')[0],p.product_name,p.quantity].filter(Boolean).join(' ').trim();msg('Found');return}}catch(e){}}
+ msg('Not found – type name or tap 📷 Label')}
+$('upc').onchange=()=>lookup($('upc').value);
+$('ocr').onclick=()=>$('ph').click();
+$('ph').onchange=async e=>{const f=e.target.files[0];if(!f)return;msg('Reading label… (first time ~10s)');
+ if(!window.Tesseract)await new Promise(r=>{const s=document.createElement('script');s.src='https://unpkg.com/tesseract.js@5/dist/tesseract.min.js';s.onload=r;document.head.appendChild(s)});
+ const {data}=await Tesseract.recognize(f,'eng');const lines=data.text.split('\n').map(s=>s.replace(/[^\w &'.%-]/g,'').trim()).filter(s=>s.length>2);
+ $('pn').value=lines.slice(0,3).join(' ');msg('Check/edit the name');$('ph').value=''};
+$('save').onclick=()=>{const it={pn:$('pn').value.trim(),upc:$('upc').value.trim(),price:$('price').value.trim(),dep,reason:reason=='Other'?$('oth').value.trim():reason,nm:$('nm').value,reg:$('reg').value,date:today};
+ if(!it.upc&&!it.pn)return msg('Need a UPC or name');if(!it.price)return $('price').focus(),msg('Enter price');if(reason=='Other'&&!it.reason)return $('oth').focus(),msg('Enter reason');
+ if(it.price&&!isNaN(it.price))it.price=(+it.price).toFixed(2);
+ if(editIx>=0){items[editIx]=it;editIx=-1}else items.push(it);L.items=JSON.stringify(items);draw();
+ ['pn','upc','price','oth'].forEach(i=>$(i).value='');setR('Not on file');last='';msg('Saved ✓ – scan next');startScan()};
+function draw(){$('cnt').textContent=items.length;$('tb').innerHTML=items.map((t,i)=>`<tr><td>${esc(t.pn)}</td><td>${t.upc}</td><td>${t.price}</td><td>${esc(t.dep)}</td><td>${esc(t.reason)}</td><td>${esc(t.nm)}</td><td><button onclick="ed(${i})">✎</button><button onclick="del(${i})">✕</button></td></tr>`).join('');
+ $('pr').innerHTML=`<h2>Manual Keyed Report</h2><p>Date: ${today} &nbsp; Register #: ${esc($('reg').value)}</p><table><tr><th>Product Name</th><th>UPC</th><th>Price</th><th>Department</th><th>Reason</th><th>Name</th></tr>${items.map(t=>`<tr><td>${esc(t.pn)}</td><td>${t.upc}</td><td>$${t.price}</td><td>${esc(t.dep)}</td><td>${esc(t.reason)}</td><td>${esc(t.nm)}</td></tr>`).join('')}</table>`}
+const esc=s=>String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+window.del=i=>{if(confirm('Delete?')){items.splice(i,1);L.items=JSON.stringify(items);draw()}};
+window.ed=i=>{const t=items[i];editIx=i;$('pn').value=t.pn;$('upc').value=t.upc;$('price').value=t.price;dep=t.dep;drawDeps();if(t.reason=='Not on file')setR(t.reason);else{setR('Other');$('oth').value=t.reason}scrollTo(0,0);msg('Editing – tap SAVE')};
+$('clr').onclick=()=>{if(confirm('Clear all entries?')){items=[];L.items='[]';draw()}};
+$('ed').onclick=()=>{const v=prompt('Departments, comma separated',deps.join(', '));if(v){deps=v.split(',').map(s=>s.trim()).filter(Boolean);L.deps=JSON.stringify(deps);drawDeps()}};
+$('csv').onclick=async()=>{const q=s=>'"'+String(s||'').replace(/"/g,'""')+'"';
+ const csv=['Date,Register,Product Name,UPC,Price,Department,Reason,Name',...items.map(t=>[t.date,t.reg,t.pn,t.upc,t.price,t.dep,t.reason,t.nm].map(q).join(','))].join('\n');
+ const f=new File([csv],'manual-keyed-report.csv',{type:'text/csv'});
+ if(navigator.canShare&&navigator.canShare({files:[f]}))try{await navigator.share({files:[f],title:'Manual Keyed Report'});return}catch(e){}
+ const a=document.createElement('a');a.href=URL.createObjectURL(f);a.download=f.name;a.click()};
+draw();startScan();
+if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
+</script></body></html>
