@@ -1,2 +1,2 @@
-self.addEventListener('install',e=>e.waitUntil(caches.open('mkr9').then(c=>c.addAll(['./','index.html','manifest.json','icon.png']))));
-self.addEventListener('fetch',e=>{e.respondWith(fetch(e.request).then(r=>{const c=r.clone();caches.open('mkr9').then(x=>x.put(e.request,c));return r}).catch(()=>caches.match(e.request)))});
+self.addEventListener('install',e=>e.waitUntil(caches.open('mkr10').then(c=>c.addAll(['./','index.html','manifest.json','icon.png']))));
+self.addEventListener('fetch',e=>{e.respondWith(fetch(e.request).then(r=>{const c=r.clone();caches.open('mkr10').then(x=>x.put(e.request,c));return r}).catch(()=>caches.match(e.request)))});
