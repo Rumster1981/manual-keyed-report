@@ -22,14 +22,14 @@ table{width:100%;border-collapse:collapse;font-size:13px;background:#fff}td,th{b
 #pr{display:none}
 @media print{body>*:not(#pr){display:none!important}#pr{display:block}body{background:#fff}#pr h2{text-align:center}}
 </style></head><body>
-<h1>Manual Keyed Report <span id="dt"></span> <small style="font-size:11px;color:#888">v8</small></h1>
+<h1>Manual Keyed Report <span id="dt"></span> <small style="font-size:11px;color:#888">v9</small></h1>
 <div class="row"><input id="reg" name="mkr_register" placeholder="Register #" inputmode="numeric" autocomplete="off"><input id="nm" name="mkr_cashier" placeholder="Name" autocomplete="off" autocorrect="off"></div>
 <div class="blk" id="bu"><div class="bt">UPC picture</div><div class="reader" id="ru"><canvas id="cu"></canvas><div class="zb"><button data-z="+">+</button><button data-z="-">−</button><button data-z="0">⟲</button></div><div class="ph">Tap 📸 to use camera</div></div>
 <div class="cam"><button class="snap" data-b="u">📸 Take picture</button><button class="redo" data-b="u">↺ Redo</button><button class="upb" data-b="u">🖼 Upload</button><input id="fu" type="file" accept="image/*" hidden></div>
-<input id="upc" name="mkr_upc" placeholder="UPC" inputmode="numeric" autocomplete="off"></div>
+<div class="fx" style="display:flex;gap:6px;align-items:center"><input style="flex:1;min-width:0" id="upc" name="mkr_upc" placeholder="UPC" inputmode="numeric" autocomplete="off"><button class="clr" data-b="u" style="flex:none">✕ Clear</button><button class="rr" data-b="u" style="flex:none">⟳ Reread</button></div></div>
 <div class="blk" id="bl"><div class="bt">Label picture</div><div class="reader" id="rl"><canvas id="cl"></canvas><div class="zb"><button data-z="+">+</button><button data-z="-">−</button><button data-z="0">⟲</button></div><div class="ph">Tap 📸 to use camera</div></div>
 <div class="cam"><button class="snap" data-b="l">📸 Take picture</button><button class="redo" data-b="l">↺ Redo</button><button class="upb" data-b="l">🖼 Upload</button><input id="fl" type="file" accept="image/*" hidden></div>
-<input id="pn" name="mkr_item_desc" placeholder="Product name" autocomplete="off" autocorrect="off" spellcheck="false"></div>
+<div class="fx" style="display:flex;gap:6px;align-items:center"><input style="flex:1;min-width:0" id="pn" name="mkr_item_desc" placeholder="Product name" autocomplete="off" autocorrect="off" spellcheck="false"><button class="clr" data-b="l" style="flex:none">✕ Clear</button><button class="rr" data-b="l" style="flex:none">⟳ Reread</button></div></div>
 <video id="vid" playsinline muted autoplay></video>
 <div id="msg"></div>
 <input id="price" name="mkr_amt" placeholder="Price" inputmode="decimal" autocomplete="off">
@@ -85,6 +85,8 @@ document.querySelectorAll('.snap').forEach(b=>b.onclick=()=>{const k=b.dataset.b
 document.querySelectorAll('.redo').forEach(b=>b.onclick=()=>{const k=b.dataset.b;tok[k]++;if(k=='u')$('upc').value='';activate(k);msg('')});
 document.querySelectorAll('.upb').forEach(b=>b.onclick=()=>$('f'+b.dataset.b).click());
 ['u','l'].forEach(k=>$('f'+k).onchange=e=>{const f=e.target.files[0];if(!f)return;const im=new Image();im.onload=()=>{const s=Math.min(1,2400/Math.max(im.naturalWidth,im.naturalHeight));proc(k,im,Math.round(im.naturalWidth*s),Math.round(im.naturalHeight*s));URL.revokeObjectURL(im.src)};im.src=URL.createObjectURL(f);e.target.value=''});
+document.querySelectorAll('.clr').forEach(b=>b.onclick=()=>{const k=b.dataset.b,f=$(k=='u'?'upc':'pn');tok[k]++;f.value='';f.focus();msg('')});
+document.querySelectorAll('.rr').forEach(b=>b.onclick=()=>{const k=b.dataset.b,c=$('c'+k);if(!have[k])return msg('Take or upload a picture first');$(k=='u'?'upc':'pn').value='';const t=document.createElement('canvas');t.width=c.width;t.height=c.height;t.getContext('2d').drawImage(c,0,0);proc(k,t,t.width,t.height)});
 function resetBlocks(){tok.u++;tok.l++;showStill('u',false);showStill('l',false);activate('u')}
 // photo storage (IndexedDB)
 const dbp=new Promise((r,j)=>{const q=indexedDB.open('mkr',1);q.onupgradeneeded=()=>q.result.createObjectStore('ph');q.onsuccess=()=>r(q.result);q.onerror=()=>j(q.error)});
