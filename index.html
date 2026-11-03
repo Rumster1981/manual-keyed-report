@@ -20,10 +20,10 @@ table{width:100%;border-collapse:collapse;font-size:13px;background:#fff}td,th{b
 </style></head><body>
 <h1>Manual Keyed Report <span id="dt"></span></h1>
 <div class="row"><input id="reg" name="mkr_register" placeholder="Register #" inputmode="numeric" autocomplete="off"><input id="nm" name="mkr_cashier" placeholder="Name" autocomplete="off" autocorrect="off"></div>
+<div id="step" style="font-weight:bold;margin:4px 0">Step 1: UPC picture</div>
 <div id="reader"><video id="vid" playsinline muted autoplay></video><canvas id="still"></canvas></div>
 <div class="cam"><button id="snap">📸 Take picture</button><button id="redo">↺ Redo</button></div>
-<div class="row"><input id="upc" name="mkr_upc" placeholder="UPC" inputmode="numeric" autocomplete="off"><button id="ocr" style="flex:0 0 auto">📷 Label</button></div>
-<input type="file" id="ph" accept="image/*" capture="environment" hidden>
+<input id="upc" name="mkr_upc" placeholder="UPC" inputmode="numeric" autocomplete="off">
 <input id="pn" name="mkr_item_desc" placeholder="Product name" autocomplete="off" autocorrect="off" spellcheck="false">
 <div id="msg"></div>
 <input id="price" name="mkr_amt" placeholder="Price" inputmode="decimal" autocomplete="off">
@@ -59,31 +59,28 @@ let zx;function zxDecode(c){if(!window.ZXing)return null;if(!zx){zx=new ZXing.Mu
  try{const ls=new ZXing.HTMLCanvasElementLuminanceSource(c);return zx.decode(new ZXing.BinaryBitmap(new ZXing.HybridBinarizer(ls))).getText()}catch(e){return null}}
 async function decodeStill(){if('BarcodeDetector'in window){try{const bd=new BarcodeDetector({formats:['upc_a','upc_e','ean_13','ean_8','code_128']});const r=await bd.detect(st);if(r.length)return r[0].rawValue}catch(e){}}
  for(const c of crops(st)){const t=zxDecode(c);if(t)return t;await new Promise(r=>setTimeout(r,0))}return null}
-$('snap').onclick=async()=>{if(frozen||!vid.videoWidth)return;st.width=vid.videoWidth;st.height=vid.videoHeight;st.getContext('2d').drawImage(vid,0,0);frozen=true;vid.pause();vid.style.display='none';st.style.display='block';$('snap').disabled=true;msg('Reading barcode…');
- const c=await decodeStill();if(!frozen)return;if(c){navigator.vibrate&&navigator.vibrate(80);$('upc').value=c;$('price').focus();lookup(c)}else msg('No barcode found – tap ↺ Redo, hold steady, fill the box with the barcode');};
-$('redo').onclick=()=>{startScan();msg('')};
-async function lookup(c){c=c.replace(/\D/g,'');if(!c)return;msg('Looking up…');
- const tries=[c,c.padStart(13,'0'),c.length==13&&c[0]=='0'?c.slice(1):null].filter(Boolean);
- for(const k of tries){try{const r=await fetch('https://world.openfoodfacts.org/api/v2/product/'+k+'.json?fields=product_name,brands,quantity');const j=await r.json();
- if(j.status==1&&j.product.product_name){const p=j.product;if(!$('pn').value)$('pn').value=[p.brands&&p.brands.split(',')[0],p.product_name,p.quantity].filter(Boolean).join(' ').trim();msg('Found');return}}catch(e){}}
- msg('Not found – type name or tap 📷 Label')}
-$('upc').onchange=()=>lookup($('upc').value);
-$('ocr').onclick=()=>$('ph').click();
+let step='upc';function setStep(x){step=x;$('step').textContent=x=='upc'?'Step 1: UPC picture (barcode + numbers)':'Step 2: Label picture (product name)'}
+let tw;async function ocr(c,digits){if(!window.Tesseract)await new Promise((r,j)=>{const s=document.createElement('script');s.src='https://unpkg.com/tesseract.js@5/dist/tesseract.min.js';s.onload=r;s.onerror=j;document.head.appendChild(s)});
+ if(!tw)tw=await Tesseract.createWorker('eng');await tw.setParameters({tessedit_char_whitelist:digits?'0123456789 ':''});return (await tw.recognize(c)).data}
+async function ocrDigits(){for(const c of[prep(st),st]){try{const d=await ocr(c,true);const t=(d.text||'').replace(/[^\d\n]/g,'');for(const l of t.split('\n')){const m=l.match(/\d{12,13}|\d{8}/);if(m)return m[0]}const all=t.replace(/\D/g,'');const m=all.match(/\d{12,13}/);if(m)return m[0]}catch(e){}}return null}
+async function readLabel(){const d=await ocr(prep(st),false);
+ const lines=(d.lines||[]).map(l=>{const ws=(l.words||[]).filter(w=>w.confidence>=60&&realWord(w.text.replace(/[^\w'&.-]/g,'')));return ws.map(w=>w.text.replace(/[^\w'&.-]/g,'')).join(' ')}).filter(t=>t.length>=3);
+ return lines.join(' ').replace(/\s+/g,' ').trim()}
+$('snap').onclick=async()=>{if(frozen||!vid.videoWidth)return;st.width=vid.videoWidth;st.height=vid.videoHeight;st.getContext('2d').drawImage(vid,0,0);frozen=true;vid.pause();vid.style.display='none';st.style.display='block';$('snap').disabled=true;const my=step;
+ if(my=='upc'){msg('Reading UPC…');let c=await decodeStill();if(!c){msg('Reading printed numbers… (first time ~10s)');c=await ocrDigits()}if(!frozen||step!=my)return;
+  if(c){navigator.vibrate&&navigator.vibrate(80);$('upc').value=c.replace(/\D/g,'');setStep('label');startScan();msg('UPC '+$('upc').value+' ✓ – now take picture of the label')}else msg('Could not read UPC – tap ↺ Redo or type it')}
+ else{msg('Reading label… (first time ~10s)');let t='';try{t=await readLabel()}catch(e){}if(!frozen||step!=my)return;
+  if($('pn').value)msg('Kept the name you typed');else if(t){$('pn').value=t;msg('Check/edit the name')}else msg('Could not read label – tap ↺ Redo or type the name');$('price').focus()}};
+$('redo').onclick=()=>{if(step=='label'&&!frozen)setStep('upc');startScan();msg('')};
 function prep(img){const sc=Math.max(1,1800/Math.max(img.width,img.height)),c=document.createElement('canvas');c.width=img.width*sc;c.height=img.height*sc;const g=c.getContext('2d');g.drawImage(img,0,0,c.width,c.height);
  const d=g.getImageData(0,0,c.width,c.height),p=d.data;let sum=0;for(let i=0;i<p.length;i+=4){const v=.3*p[i]+.59*p[i+1]+.11*p[i+2];p[i]=v;sum+=v}const m=sum/(p.length/4);
  for(let i=0;i<p.length;i+=4){const v=p[i]>m?255:0;p[i]=p[i+1]=p[i+2]=v}g.putImageData(d,0,0);return c}
 const realWord=w=>/^[A-Za-z][A-Za-z'&.-]*$/.test(w)&&w.length>=2&&/[aeiouyAEIOUY]/.test(w)&&!/(.)\1\1/.test(w)||/^\d+(\.\d+)?(oz|fl|ct|lb|g|ml|L)?$/i.test(w);
-$('ph').onchange=async e=>{const f=e.target.files[0];if(!f)return;msg('Reading label… (first time ~10s)');
- try{if(!window.Tesseract)await new Promise(r=>{const s=document.createElement('script');s.src='https://unpkg.com/tesseract.js@5/dist/tesseract.min.js';s.onload=r;document.head.appendChild(s)});
- const img=await createImageBitmap(f);const {data}=await Tesseract.recognize(prep(img),'eng');
- const lines=(data.lines||[]).map(l=>{const ws=(l.words||[]).filter(w=>w.confidence>=70&&realWord(w.text.replace(/[^\w'&.-]/g,'')));const h=ws.length?ws.reduce((a,w)=>a+(w.bbox.y1-w.bbox.y0),0)/ws.length:0;
-  return{t:ws.map(w=>w.text.replace(/[^\w'&.-]/g,'')).join(' '),h,ok:ws.length/Math.max(1,(l.words||[]).length)}}).filter(l=>l.t.length>=3&&l.ok>=.6).sort((a,b)=>b.h-a.h).slice(0,2);
- if(!lines.length||$('pn').value){msg($('pn').value?'Kept name from UPC lookup':'Could not read label clearly – type the name');}else{$('pn').value=lines.map(l=>l.t).join(' ');msg('Check/edit the name')}}catch(err){msg('Label read failed – type the name')}$('ph').value=''};
 $('save').onclick=()=>{const it={pn:$('pn').value.trim(),upc:$('upc').value.trim(),price:$('price').value.trim(),dep,reason:reason=='Other'?$('oth').value.trim():reason,nm:$('nm').value,reg:$('reg').value,date:today};
  if(!it.upc&&!it.pn)return msg('Need a UPC or name');if(!it.price)return $('price').focus(),msg('Enter price');if(reason=='Other'&&!it.reason)return $('oth').focus(),msg('Enter reason');
  if(it.price&&!isNaN(it.price))it.price=(+it.price).toFixed(2);
  if(editIx>=0){items[editIx]=it;editIx=-1}else items.push(it);L.items=JSON.stringify(items);draw();
- ['pn','upc','price','oth'].forEach(i=>$(i).value='');setR('Not on file');last='';msg('Saved ✓ – scan next');startScan()};
+ ['pn','upc','price','oth'].forEach(i=>$(i).value='');setR('Not on file');setStep('upc');msg('Saved ✓ – take next UPC picture');startScan()};
 function draw(){$('cnt').textContent=items.length;$('tb').innerHTML=items.map((t,i)=>`<tr><td>${esc(t.pn)}</td><td>${t.upc}</td><td>${t.price}</td><td>${esc(t.dep)}</td><td>${esc(t.reason)}</td><td>${esc(t.nm)}</td><td><button onclick="ed(${i})">✎</button><button onclick="del(${i})">✕</button></td></tr>`).join('');
  $('pr').innerHTML=`<h2>Manual Keyed Report</h2><p>Date: ${today} &nbsp; Register #: ${esc($('reg').value)}</p><table><tr><th>Product Name</th><th>UPC</th><th>Price</th><th>Department</th><th>Reason</th><th>Name</th></tr>${items.map(t=>`<tr><td>${esc(t.pn)}</td><td>${t.upc}</td><td>$${t.price}</td><td>${esc(t.dep)}</td><td>${esc(t.reason)}</td><td>${esc(t.nm)}</td></tr>`).join('')}</table>`}
 const esc=s=>String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -96,6 +93,6 @@ $('csv').onclick=async()=>{const q=s=>'"'+String(s||'').replace(/"/g,'""')+'"';
  const f=new File([csv],'manual-keyed-report.csv',{type:'text/csv'});
  if(navigator.canShare&&navigator.canShare({files:[f]}))try{await navigator.share({files:[f],title:'Manual Keyed Report'});return}catch(e){}
  const a=document.createElement('a');a.href=URL.createObjectURL(f);a.download=f.name;a.click()};
-draw();startScan();
+draw();setStep('upc');startScan();
 if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
 </script></body></html>
