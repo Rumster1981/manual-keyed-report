@@ -22,7 +22,7 @@ table{width:100%;border-collapse:collapse;font-size:13px;background:#fff}td,th{b
 #pr{display:none}
 @media print{body>*:not(#pr){display:none!important}#pr{display:block}body{background:#fff}#pr h2{text-align:center}}
 </style></head><body>
-<h1>Manual Keyed Report <span id="dt"></span> <small style="font-size:11px;color:#888">v7</small></h1>
+<h1>Manual Keyed Report <span id="dt"></span> <small style="font-size:11px;color:#888">v8</small></h1>
 <div class="row"><input id="reg" name="mkr_register" placeholder="Register #" inputmode="numeric" autocomplete="off"><input id="nm" name="mkr_cashier" placeholder="Name" autocomplete="off" autocorrect="off"></div>
 <div class="blk" id="bu"><div class="bt">UPC picture</div><div class="reader" id="ru"><canvas id="cu"></canvas><div class="zb"><button data-z="+">+</button><button data-z="-">−</button><button data-z="0">⟲</button></div><div class="ph">Tap 📸 to use camera</div></div>
 <div class="cam"><button class="snap" data-b="u">📸 Take picture</button><button class="redo" data-b="u">↺ Redo</button><button class="upb" data-b="u">🖼 Upload</button><input id="fu" type="file" accept="image/*" hidden></div>
@@ -46,8 +46,8 @@ const $=id=>document.getElementById(id),L=localStorage;
 const today=new Date().toLocaleDateString();$('dt').textContent=today;
 let deps=JSON.parse(L.deps2||'null')||['Grocery','Grocery Taxable','General Mdse','HBC','Deli','Produce','Meat','Seafood','Bakery','Prepared Food','Floral','Kosher Meat','Sushi','Kosher Deli','Tobacco','Beer/Wine','Bottle Deposit','Charity','Starbucks','RX','Tele In','H/D In','Tele Out','H/D Out'];
 let dep=L.dep||'Grocery',reason='Not on file',items=JSON.parse(L.items||'[]'),editIx=-1;
-$('reg').value=L.reg||'';$('nm').value=L.nm||'Clark';
-$('reg').onchange=()=>L.reg=$('reg').value;$('nm').onchange=()=>L.nm=$('nm').value;
+$('reg').value=L.reg||'';if(!L.nm){const n=prompt('Your name (saved on this phone):','');if(n&&n.trim())L.nm=n.trim()}$('nm').value=L.nm||'';
+$('reg').onchange=()=>L.reg=$('reg').value;$('nm').oninput=$('nm').onchange=()=>L.nm=$('nm').value.trim();
 function drawDeps(){$('deps').innerHTML='';deps.forEach(d=>{const b=document.createElement('button');b.textContent=d;if(d==dep)b.className='on';b.onclick=()=>{dep=d;L.dep=d;drawDeps()};$('deps').appendChild(b)})}drawDeps();
 document.querySelectorAll('.rs button').forEach(b=>b.onclick=()=>setR(b.dataset.r));
 function setR(r){reason=r;document.querySelectorAll('.rs button').forEach(x=>x.classList.toggle('on',x.dataset.r==r));$('oth').style.display=r=='Other'?'block':'none';if(r=='Other')$('oth').focus()}
